@@ -1,0 +1,8 @@
+{
+  "preset": "tighten",
+  "disabled": [
+    "AlphabeticalImports",
+    "SpaceAfterSoleNotOperator",
+    "NoStringInterpolationWithoutBraces"
+  ]
+}

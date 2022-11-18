@@ -1,0 +1,54 @@
+name: Build all projects
+
+on: [ push, workflow_dispatch ]
+
+env:
+  CI: true
+  FORCE_COLOR: true
+
+jobs:
+  test-dashboard:
+    name: Build and test Dashboard+API
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0.21
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: skills-heroes
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Install packages
+        run: |
+          sudo apt-get update -yqq && sudo apt-get install php8.1 php8.1-mbstring php8.1-pgsql php8.1-zip git curl wget libonig-dev libpq-dev libzip-dev unzip -yqq
+
+      - name: '[API] Install composer and its deps'
+        run: |
+          wget https://composer.github.io/installer.sig -O - -q | tr -d '\n' > installer.sig
+          php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+          php -r "if (hash_file('SHA384', 'composer-setup.php') === file_get_contents('installer.sig')) { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"
+          php composer-setup.php
+          php -r "unlink('composer-setup.php'); unlink('installer.sig');"
+          php composer.phar install
+
+      - name: '[API] Start'
+        run: |
+          echo "DB_HOST=localhost" >> .env
+          echo "DB_NAME=skills-heroes" >> .env
+          echo "DB_USER=root" >> .env
+          echo "DB_PASS=\"\"" >> .env
+          
+          php -d log_errors=on -d error_reporting=E_ALL -d error_log=/home/runner/php_errors.log -S localhost:1337 2> /home/runner/php_errors.log &
+          curl --version
+          curl --retry 5 --retry-max-time 20 --retry-connrefused http://localhost:1337/health
+          cat ~/php_errors.log
